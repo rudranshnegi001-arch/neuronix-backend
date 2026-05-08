@@ -52,95 +52,165 @@ Rules:
 """
 
 ALLOWED_MODELS = {
-    "mistral-small": "mistralai/mistral-small-24b-instruct-2501",
-    "mistral-medium": "mistralai/mixtral-8x7b-instruct",
+    "mistral-small": "mistralai/mistral-small-2603",
+    "mistral-medium": "mistralai/mistral-medium-3",
     "llama3": "meta-llama/llama-3-8b-instruct",
     "openai": "openai/gpt-3.5-turbo",
     "gpt4o-mini": "openai/gpt-4o-mini",
     "claude-haiku": "anthropic/claude-3-haiku",
-    "claude-sonnet": "anthropic/claude-3-sonnet",
+    "claude-sonnet": "anthropic/claude-sonnet-4",
     "deepseek-chat": "deepseek/deepseek-chat",
-    "deepseek-coder": "deepseek/deepseek-coder",
+    "deepseek-coder": "deepseek/deepseek-chat-v3.1",
     "deepseek-reasoner": "deepseek/deepseek-r1",
-    "gemma2-9b": "google/gemma-2-9b-it",
+    "gemma2-9b": "google/gemma-2-27b-it",
     "qwen-7b": "qwen/qwen-2.5-7b-instruct",
     "qwen-coder": "qwen/qwen-2.5-coder-32b-instruct",
-    "qwq-32b": "qwen/qwq-32b-preview",
+    "qwq-32b": "qwen/qwen3.6-27b",
 }
 
 SEARCH_KEYWORDS = [
+    # realtime
     "latest",
     "today",
+    "live",
+    "breaking",
+    "recent",
+
+    # news/events
     "news",
-    "current",
+    "who won",
+
+    # dynamic data
     "weather",
     "score",
-    "price",
-    "update",
-    "recent",
-    "who won",
-    "search",
-    "internet",
-    "online",
-    "live",
-    "stock",
-    "release date",
-    "breaking",
-]
+    "stock price",
+    "price of",
+    "share price",
 
-STATIC_KNOWLEDGE_KEYWORDS = [
-    "explain",
-    "meaning",
-    "definition",
-    "formula",
-    "theory",
-    "derive",
+    # releases
+    "release date",
+
+    # sports
+    "match result",
+    "live score",
+
+    # finance
+    "market cap",
+
+    # explicit search intent
+    "search web",
+    "search online"
 ]
 
 # ✅ IMPROVED SMART SEARCH DETECTION
-def needs_search(message):
+def needs_search_keywords(message):
 
     message = message.lower().strip()
 
-    # ✅ Ignore very short messages
-    if len(message) < 8:
-        return False
-
-    # ✅ Static knowledge bypass
-    if any(
-        keyword in message
-        for keyword in STATIC_KNOWLEDGE_KEYWORDS
-    ):
-        return False
-
     # ✅ Search keywords
     keyword_match = any(
-        keyword in message
+        re.search(rf"\b{re.escape(keyword)}\b", message)
         for keyword in SEARCH_KEYWORDS
     )
 
-    # ✅ Dynamic patterns
-    dynamic_patterns = [
-        r"\bwho won\b",
-        r"\btoday\b",
-        r"\blatest\b",
-        r"\brecent\b",
-        r"\bcurrent\b",
-        r"\blive\b",
-        r"\bnews\b",
-        r"\bprice\b",
-        r"\bweather\b",
-        r"\bscore\b",
-        r"\bstock\b",
-        r"\brelease date\b",
-    ]
+    return keyword_match
 
-    pattern_match = any(
-        re.search(pattern, message)
-        for pattern in dynamic_patterns
-    )
+def ai_needs_search(message):
 
-    return keyword_match or pattern_match
+    try:
+
+        classifier_prompt = f"""
+You are a search detection classifier.
+
+Your task:
+Determine whether answering the user's message requires real-time web search.
+
+Examples requiring search:
+- latest news
+- current weather
+- live scores
+- stock prices
+- recent events
+- today's updates
+- release dates
+- online information
+
+Examples NOT requiring search:
+- explanations
+- coding help
+- math
+- physics
+- storytelling
+- grammar
+- historical facts
+- general knowledge
+
+Reply ONLY with:
+YES
+or
+NO
+
+User message:
+{message}
+"""
+
+        response = session.post(
+
+            "https://openrouter.ai/api/v1/chat/completions",
+
+            headers={
+
+                "Authorization":
+                    f"Bearer {OPENROUTER_API_KEY}",
+
+                "Content-Type":
+                    "application/json",
+
+                "HTTP-Referer":
+                    "https://neuronix-backend-g7oq.onrender.com",
+
+                "X-Title":
+                    "Neuronix AI",
+            },
+
+            json={
+
+                # FAST + CHEAP classifier model
+                "model": "google/gemma-2-27b-it",
+
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": classifier_prompt
+                    }
+                ],
+
+                "temperature": 0,
+
+                "max_tokens": 5
+            },
+
+            timeout=(5, 10)
+        )
+
+        if response.status_code != 200:
+            return False
+
+        data = response.json()
+
+        reply = (
+            data["choices"][0]["message"]["content"]
+            .strip()
+            .upper()
+        )
+        print("CLASSIFIER RAW:", reply)
+        return reply.startswith("YES")
+
+    except Exception as e:
+
+        print("CLASSIFIER ERROR:", str(e))
+
+        return False
 
 # ✅ IMPROVED SEARCH FUNCTION
 def search_web(query):
@@ -163,7 +233,6 @@ def search_web(query):
             query=query,
             search_depth="basic",
             max_results=5,
-            timeout=10
         )
 
         print(
@@ -282,8 +351,57 @@ def chat():
             }
         ]
 
-        # ✅ SMART SEARCH
-        if needs_search(user_message):
+        # ✅ SMART SEARCH SYSTEM
+
+        should_search = False
+
+        # 🔥 Layer 1 — Fast keyword detection
+        if needs_search_keywords(user_message):
+
+            print("⚡ KEYWORD SEARCH DETECTED")
+
+            should_search = True
+
+
+        elif len(user_message.split()) <= 1:
+            should_search = False
+
+        # 🔥 Layer 2 — AI classifier
+        else:
+
+            # ✅ Skip classifier for obvious static prompts
+            static_keywords = [
+                "explain",
+                "code",
+                "python",
+                "java",
+                "math",
+                "physics",
+                "chemistry",
+                "essay",
+                "story",
+                "derive",
+                "formula"
+            ]
+
+            is_static = any(
+                keyword in user_message.lower()
+                for keyword in static_keywords
+            )
+
+            if not is_static:
+
+                print("🧠 RUNNING AI CLASSIFIER")
+
+                should_search = ai_needs_search(user_message)
+
+                print("CLASSIFIER RESULT:", should_search)
+
+            else:
+
+                print("⚡ STATIC PROMPT — SKIPPING CLASSIFIER")
+
+        if should_search:
 
             print("🔎 SEARCHING WEB...")
 
@@ -346,7 +464,7 @@ Instructions:
                     "application/json",
 
                 "HTTP-Referer":
-                    "http://localhost",
+                    "https://neuronix-backend-g7oq.onrender.com",
 
                 "X-Title":
                     "Neuronix AI",
@@ -370,7 +488,7 @@ Instructions:
                 "temperature": 0.7,
 
                 # ✅ SAFETY LIMIT
-                "max_tokens": 4000
+                "max_tokens": 2000
             },
 
             stream=True,
@@ -381,20 +499,32 @@ Instructions:
 
         # ✅ Handle API errors early
         if response.status_code == 429:
+            print("RATE LIMIT:", response.text)
 
             return jsonify({
                 "reply":
-                    "AI service is busy, try again later"
+                    "Model is busy or rate-limited. Please try another model."
             }), 429
 
         if response.status_code != 200:
 
             print("API ERROR:", response.text)
 
+            try:
+                error_data = response.json()
+
+                error_message = (
+                    error_data
+                    .get("error", {})
+                    .get("message", "Unknown AI error")
+                )
+
+            except Exception:
+                error_message = "Unknown AI error"
+
             return jsonify({
-                "reply":
-                    "Error from AI service"
-            }), 500
+                "reply": f"AI Error: {error_message}"
+            }), response.status_code
 
         # 🔥 STREAMING GENERATOR
         @stream_with_context
