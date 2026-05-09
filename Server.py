@@ -11,15 +11,15 @@ import json
 import re
 import time
 from collections import OrderedDict
-from tavily import TavilyClient
+from exa_py import Exa
 
 app = Flask(__name__)
 
 # 🔐 Use environment variable (recommended)
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
-tavily = TavilyClient(api_key=TAVILY_API_KEY)
+EXA_API_KEY = os.getenv("EXA_API_KEY")
+exa = Exa(EXA_API_KEY)
 
 MAX_CACHE_SIZE = 100
 
@@ -58,7 +58,7 @@ ALLOWED_MODELS = {
     "openai": "openai/gpt-3.5-turbo",
     "gpt4o-mini": "openai/gpt-4o-mini",
     "claude-haiku": "anthropic/claude-3-haiku",
-    "claude-sonnet": "anthropic/claude-sonnet-4",
+    "claude-sonnet": "anthropic/claude-3-haiku",
     "deepseek-chat": "deepseek/deepseek-chat",
     "deepseek-coder": "deepseek/deepseek-chat-v3.1",
     "deepseek-reasoner": "deepseek/deepseek-r1",
@@ -229,24 +229,31 @@ def search_web(query):
 
         start_time = time.time()
 
-        result = tavily.search(
-            query=query,
-            search_depth="basic",
-            max_results=5,
+        result = exa.search_and_contents(
+
+            query,
+
+            type="auto",
+
+            num_results=5,
+
+            text=True
         )
 
         print(
-            f"⚡ Search completed in "
+            f"⚡ Exa search completed in "
             f"{time.time() - start_time:.2f}s"
         )
 
         formatted_results = []
 
-        for item in result.get("results", []):
+        for item in result.results:
 
-            title = item.get("title", "")
+            title = item.title or ""
 
-            content = item.get("content", "")
+            content = item.text or ""
+
+            url = item.url or ""
 
             # ✅ CLEAN CONTENT
             content = re.sub(
@@ -256,11 +263,8 @@ def search_web(query):
             ).strip()
 
             # ✅ LIMIT SIZE
-            content = content[:500]
+            content = content[:700]
 
-            url = item.get("url", "")
-
-            # ✅ SKIP EMPTY RESULTS
             if not title and not content:
                 continue
 
@@ -292,7 +296,7 @@ URL:
 
     except Exception as e:
 
-        print("SEARCH ERROR:", str(e))
+        print("EXA SEARCH ERROR:", str(e))
 
         return ""
 
