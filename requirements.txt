@@ -3,3 +3,5 @@ requests
 gunicorn
 gevent
 tavily-python
+tavily
+exa_py
