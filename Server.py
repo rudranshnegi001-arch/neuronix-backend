@@ -54,7 +54,7 @@ Rules:
 ALLOWED_MODELS = {
     "mistral-small": "mistralai/mistral-small-2603",
     "mistral-medium": "mistralai/mistral-medium-3",
-    "llama3": "meta-llama/llama-3-8b-instruct",
+    "llama3": "meta-llama/llama-3.1-8b-instruct",
     "openai": "openai/gpt-3.5-turbo",
     "gpt4o-mini": "openai/gpt-4o-mini",
     "claude-haiku": "anthropic/claude-3-haiku",
