@@ -66,6 +66,8 @@ ALLOWED_MODELS = {
     "qwen-7b": "qwen/qwen-2.5-7b-instruct",
     "qwen-coder": "qwen/qwen-2.5-coder-32b-instruct",
     "qwq-32b": "qwen/qwen3.6-27b",
+    "flux-3-image-klein": "black-forest-labs/flux-3-image-klein",
+    "qwen-image-2.1-turbo": "qwen/qwen-image-2.1-turbo",
 }
 
 SEARCH_KEYWORDS = [
@@ -319,12 +321,8 @@ def chat():
             ""
         ).strip()
 
+        base64_image = data.get("image")  # ✅ EXTRACT IMAGE SENT FROM FLUTTER
         model_id = data.get("model")
-
-        if not user_message:
-            return jsonify({
-                "reply": "Empty message"
-            }), 400
 
         if not model_id:
             return jsonify({
@@ -443,16 +441,43 @@ Instructions:
 - Do not mention that web search was used unless necessary.
 """
 
+            # Handle text/image payload structure for user search prompt
+            if base64_image:
+                user_content = [
+                    {"type": "text", "text": enhanced_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": base64_image
+                        }
+                    }
+                ]
+            else:
+                user_content = enhanced_prompt
+
             messages_payload.append({
                 "role": "user",
-                "content": enhanced_prompt
+                "content": user_content
             })
 
         else:
+            # Handle text/image payload structure for normal prompt
+            if base64_image:
+                user_content = [
+                    {"type": "text", "text": user_message if user_message else "Describe this image."},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": base64_image
+                        }
+                    }
+                ]
+            else:
+                user_content = user_message
 
             messages_payload.append({
                 "role": "user",
-                "content": user_message
+                "content": user_content
             })
 
         # 🔥 Call OpenRouter with streaming
