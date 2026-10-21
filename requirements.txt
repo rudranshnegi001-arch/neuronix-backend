@@ -5,3 +5,4 @@ gevent
 tavily-python
 tavily
 exa_py
+packaging
