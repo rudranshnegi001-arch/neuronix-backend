@@ -52,17 +52,17 @@ Rules:
 """
 
 ALLOWED_MODELS = {
-    "mistral-small": "mistralai/voxtral-small-24b-2507-stt",
+    "mistral-small": "mistralai/mistral-small-2603",
     "mistral-medium": "mistralai/mistral-medium-3",
     "llama3": "meta-llama/llama-3.1-8b-instruct",
     "openai": "openai/gpt-3.5-turbo",
     "gpt4o-mini": "openai/gpt-4o-mini",
-    "claude-haiku": "anthropic/claude-haiku-5.5",
-    "claude-sonnet": "anthropic/claude-sonnet-5.5",
+    "claude-haiku": "anthropic/claude-3-haiku",
+    "claude-sonnet": "anthropic/claude-3-haiku",
     "deepseek-chat": "deepseek/deepseek-chat",
     "deepseek-coder": "deepseek/deepseek-chat-v3.1",
     "deepseek-reasoner": "deepseek/deepseek-r1",
-    "gemma4": "google/gemma-4-26b-a4b-it:free",
+    "gemma2-9b": "google/gemma-2-27b-it",
     "qwen-7b": "qwen/qwen-2.5-7b-instruct",
     "qwen-coder": "qwen/qwen-2.5-coder-32b-instruct",
     "qwq-32b": "qwen/qwen3.6-27b",
@@ -301,54 +301,6 @@ URL:
         print("EXA SEARCH ERROR:", str(e))
 
         return ""
-
-@app.route("/generate-image", methods=["POST"])
-def generate_image():
-    try:
-        data = request.get_json(silent=True)
-        if not data or "prompt" not in data:
-            return jsonify({"reply": "Invalid request"}), 400
-
-        prompt = data.get("prompt", "").strip()
-        model_id = data.get("model")
-
-        if not model_id or model_id not in ALLOWED_MODELS:
-            return jsonify({"reply": "Invalid model selected"}), 400
-
-        model_to_use = ALLOWED_MODELS[model_id]
-
-        response = session.post(
-            "https://openrouter.ai/api/v1/images/generations",
-            headers={
-                "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://neuronix-backend-g7oq.onrender.com",
-                "X-Title": "Neuronix AI",
-            },
-            json={
-                "model": model_to_use,
-                "prompt": prompt,
-                "n": 1,
-                "size": "1024x1024"
-            },
-            timeout=60
-        )
-
-        if response.status_code != 200:
-            print("IMAGE GEN ERROR:", response.text)
-            return jsonify({"reply": f"Image Gen Error: {response.text}"}), response.status_code
-
-        res_data = response.json()
-        image_url = res_data.get("data", [{}])[0].get("url")
-
-        if not image_url:
-            return jsonify({"reply": "Failed to retrieve generated image URL"}), 500
-
-        return jsonify({"imageUrl": image_url})
-
-    except Exception as e:
-        print("SERVER ERROR:", str(e))
-        return jsonify({"reply": "Server error occurred during image generation"}), 500
 
 @app.route("/chat", methods=["POST"])
 def chat():
